@@ -159,7 +159,9 @@ EventTypesWithCleanup {
 
 			freeControlBus: #{ | server |
 				server.controlBusAllocator.free(~out)
-			}
+			},
+
+			sync: #{|server| server.sync;},
 //,
 //
 //			group: #{|server|
@@ -177,7 +179,8 @@ EventTypesWithCleanup {
 			on:		false,
 			group:	false,
 			fadeBus: false,
-			tree:	false
+			tree:	false,
+			sync:	false
 		);
 
 		cleanupTypes = (
