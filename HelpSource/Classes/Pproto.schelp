@@ -20,6 +20,7 @@ definitionList::
 ## \audioBus || allocate ~channels consecutive audio buses
 ## \controlBus || allocate ~channels consecutive control buses
 ## \on || create a synth
+## \sync || wait for server to finish allocating resources
 
 ::
 
@@ -60,6 +61,7 @@ SynthDef(\help_playbuf, { | out=0, bufnum = 0, rate = 1, startPos = 0, amp = 0.1
 a = Pproto({
 	~newgroup = (type: \group).yield;
 	~sf1 = SoundFile(Platform.resourceDir +/+ "sounds/a11wlk01-44_1.aiff").asEvent.yield;
+        (type: \rest).yield; //wait for server to allocate soundfile
 },
 	Pbind(*[
 		instrument:	\help_playbuf,
