@@ -933,7 +933,9 @@ Event : Environment {
 							server.sendBundle(server.latency, *~bundle);
 						};
 						~bundle = nil;
-					}
+					},
+
+					sync: {|server| server.sync; }
 				)
 			)
 		);
