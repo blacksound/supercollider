@@ -162,6 +162,7 @@ EventTypesWithCleanup {
 			},
 
 			sync: #{|server| server.sync;},
+			freeSync: #{}, //FIXME: Temporary fix for getting sync event type to work with Pproto
 //,
 //
 //			group: #{|server|
@@ -179,8 +180,7 @@ EventTypesWithCleanup {
 			on:		false,
 			group:	false,
 			fadeBus: false,
-			tree:	false,
-			sync:	false
+			tree:	false
 		);
 
 		cleanupTypes = (
@@ -194,6 +194,7 @@ EventTypesWithCleanup {
 			cueID:		\freeCueID,			// free buffer, close file, and deallocate bufNum
 			audioBus:		\freeAudioBus, 		// deallocate bus
 			controlBus:	\freeControlBus,		// deallocate bus
+			sync: \freeSync,
 
 
 //			load:		\free,				// bufNum was allocated elsewhere, let the source clean it up
