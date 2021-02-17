@@ -108,6 +108,11 @@ UGen : AbstractFunction {
 			Wrap.perform(Wrap.methodSelectorForRate(rate), this, lo, hi)
 		}
 	}
+
+	degrad { ^this * (pi/180) }
+
+	raddeg { ^this * (180/pi) }
+
 	blend { arg that, blendFrac = 0.5;
 		var pan;
 		^if (rate == \demand || that.rate == \demand) {
@@ -182,6 +187,19 @@ UGen : AbstractFunction {
 		);
 		^this
 	}
+
+	snap { arg resolution = 1.0, margin = 0.05, strength = 1.0;
+		var round = round(this, resolution);
+		var diff = round - this;
+		^Select.multiNew(this.rate, abs(diff) < margin, this, this + (strength * diff));
+	}
+
+	softRound { arg resolution = 1.0, margin = 0.05, strength = 1.0;
+		var round = round(this, resolution);
+		var diff = round - this;
+		^Select.multiNew(this.rate, abs(diff) > margin, this, this + (strength * diff));
+	}
+
 	linlin { arg inMin, inMax, outMin, outMax, clip = \minmax;
 		if (this.rate == \audio) {
 			^LinLin.ar(this.prune(inMin, inMax, clip), inMin, inMax, outMin, outMax)
@@ -395,7 +413,7 @@ UGen : AbstractFunction {
 		if (anInput.isValidUGenInput, {
 			^BinaryOpUGen.new(aSelector, this, anInput)
 		},{
-			anInput.performBinaryOpOnUGen(aSelector, this);
+			^anInput.performBinaryOpOnUGen(aSelector, this);
 		});
 	}
 	reverseComposeBinaryOp { arg aSelector, aUGen;
@@ -450,16 +468,21 @@ UGen : AbstractFunction {
 		^this.class.name.asString;
 	}
 	writeDef { arg file;
-		file.putPascalString(this.name);
-		file.putInt8(this.rateNumber);
-		file.putInt32(this.numInputs);
-		file.putInt32(this.numOutputs);
-		file.putInt16(this.specialIndex);
-		// write wire spec indices.
-		inputs.do({ arg input;
-			input.writeInputSpec(file, synthDef);
-		});
-		this.writeOutputSpecs(file);
+		try {
+			file.putPascalString(this.name);
+			file.putInt8(this.rateNumber);
+			file.putInt32(this.numInputs);
+			file.putInt32(this.numOutputs);
+			file.putInt16(this.specialIndex);
+			// write wire spec indices.
+			inputs.do({ arg input;
+				input.writeInputSpec(file, synthDef);
+			});
+			this.writeOutputSpecs(file);
+		} {
+			arg e;
+			Error("UGen: could not write def: %".format(e.what())).throw;
+		}
 	}
 
 	initTopoSort {
@@ -579,4 +602,29 @@ OutputProxy : UGen {
 	dumpName {
 		^this.source.dumpName ++ "[" ++ outputIndex ++ "]"
 	}
+
+	controlName {
+		var counter = 0, index = 0;
+
+		this.synthDef.children.do({
+			arg ugen;
+			if(this.source.synthIndex == ugen.synthIndex,
+				{ index = counter + this.outputIndex; });
+			if(ugen.isKindOf(Control),
+				{ counter = counter + ugen.channels.size; });
+		});
+
+		^synthDef.controlNames.detect({ |c| c.index == index });
+	}
+
+	spec_{ arg spec;
+		var controlName, name;
+		controlName = this.controlName;
+		if (this.controlName.notNil) {
+			controlName.spec = spec;
+		} {
+			"Cannot set spec on a non-Control".error;
+		}
+	}
+
 }

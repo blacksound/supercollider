@@ -3,6 +3,8 @@ QtGUI {
 	classvar <style;
 
 	*initClass {
+		if(Platform.hasQt.not) { ^nil; };	// skip init on Qt-less builds
+
 		Class.initClassTree( GUI );
 		GUI.add( this );
 		this.style = "Fusion";
@@ -91,7 +93,10 @@ QtGUI {
 
 	//////////////////////////////////////////////////////////////////////
 
-	*cursorPosition { _Qt_CursorPosition }
+	*cursorPosition {
+		_Qt_CursorPosition
+		^this.primitiveFailed
+	}
 
 	*availableStyles {
 		_Qt_AvailableStyles

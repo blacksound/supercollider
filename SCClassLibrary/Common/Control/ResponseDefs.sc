@@ -393,8 +393,9 @@ OSCArgsMatcher : AbstractMessageMatcher {
 	init {|argArgTemplate, argFunc| argTemplate = argArgTemplate.asArray; func = argFunc; }
 
 	value {|testMsg, time, addr, recvPort|
-		testMsg[1..].do({|item, i|
-			if(argTemplate[i].matchItem(item).not, {^this});
+		var msgArgs = testMsg[1..];
+		argTemplate.do({|item, i|
+			if(item.matchItem(msgArgs[i]).not, {^this});
 		});
 		func.value(testMsg, time, addr, recvPort)
 	}
@@ -468,7 +469,7 @@ MIDIMessageDispatcherNV : MIDIMessageDispatcher {
 // for \sysex
 MIDISysexDispatcher : MIDIMessageDispatcher {
 
-	getKeysForFuncProxy {|funcProxy| ^(funcProxy.srcID ? \all)}
+	getKeysForFuncProxy { |funcProxy| ^(funcProxy.srcID ? \all).asArray }
 
 	value {|srcID, data|
 		active[srcID].value(data, srcID);
@@ -532,7 +533,7 @@ MIDISysDataDispatcher : MIDIMessageDispatcher {
 }
 
 MIDISysDataDropIndDispatcher : MIDISysDataDispatcher {
-	
+
 	value {|srcID, index, data|
 		active[index].value(data, srcID);
 	}

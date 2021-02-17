@@ -268,7 +268,7 @@ FuncStream : Stream {
 		^super.new.nextFunc_(nextFunc).resetFunc_(resetFunc).envir_(currentEnvironment)
 	}
 	next { arg inval;
-		^envir.use({ nextFunc.value(inval).processRest(inval) })
+		^envir.use({ nextFunc.value(inval) })
 	}
 	reset {
 		^envir.use({ resetFunc.value })
@@ -359,8 +359,12 @@ PauseStream : Stream {
 	}
 	reset { originalStream.reset }
 	stop {
+		var saveStream = this.stream;
 		this.prStop;
-		this.changed(\userStopped);
+ 		this.changed(\userStopped);
+		if(saveStream === thisThread) {
+			nil.alwaysYield
+		}
 	}
 	prStop {
 		stream = nil;
@@ -411,7 +415,7 @@ PauseStream : Stream {
 		^nextTime
 	}
 	awake { arg beats, seconds, inClock;
-		stream.beats = beats;
+		clock = inClock;
 		^this.next(beats)
 	}
 	threadPlayer { ^this }
@@ -503,7 +507,7 @@ EventStreamPlayer : PauseStream {
 
 		clock.play({
 			if(isWaiting and: { nextBeat.isNil }) {
-				clock.sched(0, this );
+				thisThread.clock.sched(0, this );
 				isWaiting = false;
 				this.changed(\playing)
 			};

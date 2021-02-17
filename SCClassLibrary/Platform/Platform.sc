@@ -20,7 +20,10 @@ Platform {
 
 	name { ^this.subclassResponsibility }
 
-	recompile { _Recompile }
+	recompile {
+		_Recompile
+		^this.primitiveFailed
+	}
 	*case { | ... cases |
 		^thisProcess.platform.name.switch(*cases)
 	}
@@ -29,33 +32,59 @@ Platform {
 	*classLibraryDir { ^thisProcess.platform.classLibraryDir }
 	*helpDir { ^thisProcess.platform.helpDir }
 
-	userHomeDir { _Platform_userHomeDir }
+	userHomeDir {
+		_Platform_userHomeDir
+		^this.primitiveFailed
+	}
 	*userHomeDir { ^thisProcess.platform.userHomeDir }
 
-	systemAppSupportDir { _Platform_systemAppSupportDir }
+	systemAppSupportDir {
+		_Platform_systemAppSupportDir
+		^this.primitiveFailed
+	}
 	*systemAppSupportDir { ^thisProcess.platform.systemAppSupportDir }
 
-	userAppSupportDir { _Platform_userAppSupportDir }
+	userAppSupportDir {
+		_Platform_userAppSupportDir
+		^this.primitiveFailed
+	}
 	*userAppSupportDir { ^thisProcess.platform.userAppSupportDir }
 
-	systemExtensionDir { _Platform_systemExtensionDir }
+	systemExtensionDir {
+		_Platform_systemExtensionDir
+		^this.primitiveFailed
+	}
 	*systemExtensionDir { ^thisProcess.platform.systemExtensionDir }
 
-	userExtensionDir { _Platform_userExtensionDir }
+	userExtensionDir {
+		_Platform_userExtensionDir
+		^this.primitiveFailed
+	}
 	*userExtensionDir { ^thisProcess.platform.userExtensionDir }
 
-	userConfigDir { _Platform_userConfigDir }
+	userConfigDir {
+		_Platform_userConfigDir
+		^this.primitiveFailed
+	}
 	*userConfigDir { ^thisProcess.platform.userConfigDir }
 
-	resourceDir { _Platform_resourceDir }
+	resourceDir {
+		_Platform_resourceDir
+		^this.primitiveFailed
+	}
 	*resourceDir { ^thisProcess.platform.resourceDir }
+
+	*recordingsDir { ^thisProcess.platform.recordingsDir }
 
 	defaultTempDir { ^this.subclassResponsibility() }
 	*defaultTempDir { ^thisProcess.platform.defaultTempDir }
 
 	// The "ideName" is for ide-dependent compilation.
 	// From SC.app, the value is "scapp" meaning "scide_scapp" folders will be compiled and other "scide_*" ignored.
-	ideName { _Platform_ideName }
+	ideName {
+		_Platform_ideName
+		^this.primitiveFailed
+	}
 	*ideName { ^thisProcess.platform.ideName }
 
 	platformDir { ^this.name.asString }
@@ -63,6 +92,9 @@ Platform {
 
 	pathSeparator { ^this.subclassResponsibility }
 	*pathSeparator { ^thisProcess.platform.pathSeparator }
+
+	pathDelimiter{ ^this.subclassResponsibility }
+	*pathDelimiter { ^thisProcess.platform.pathDelimiter }
 
 	isPathSeparator { |char| ^this.subclassResponsibility }
 	*isPathSeparator { |char| ^thisProcess.platform.isPathSeparator(char) }
@@ -129,6 +161,24 @@ Platform {
 	// Prefer qt but fall back to swing if qt not installed.
 	defaultGUIScheme { if (GUI.get(\qt).notNil) {^\qt} {^\swing} }
 
+	// Predicate to check if SuperCollider was built with Qt.
+	*hasQt {
+		_Platform_hasQt
+		^this.primitiveFailed
+	}
+
+	// Predicate to check if SuperCollider was built with QtWebEngine
+	*hasQtWebEngine {
+		_Platform_hasQtWebEngine
+		^this.primitiveFailed
+	}
+
+	// Architecture for which this version of SuperCollider was built.
+	*architecture {
+		_Platform_architecture
+		^this.primitiveFailed
+	}
+
 	isSleeping { ^false } // unless defined otherwise
 
 	// used on systems to deduce a svn directory path, if system wide location is used for installed version. (tested on Linux).
@@ -143,13 +193,25 @@ Platform {
 	// hook for clients to write frontend.css
 	writeClientCSS {}
 
+	killProcessByID { |pid|
+		^this.subclassResponsibility(\killProcessByID)
+	}
+
 	killAll { |cmdLineArgs|
 		^this.subclassResponsibility(\killAll)
 	}
+
+	// used to format paths correctly for command-line calls
+	// On Windows, encloses with quotes; on Unix systems, escapes spaces.
+	formatPathForCmdLine { |path|
+		^this.subclassResponsibility
+	}
+
 }
 
 UnixPlatform : Platform {
 	pathSeparator { ^$/ }
+    pathDelimiter { ^$: }
 
 	isPathSeparator { |char|
 		^(char === this.pathSeparator)
@@ -167,6 +229,10 @@ UnixPlatform : Platform {
 		^arch.asSymbol;
 	}
 
+	killProcessByID { |pid|
+		("kill -9 " ++ pid).unixCmd;
+	}
+
 	killAll { |cmdLineArgs|
 		("killall -9 " ++ cmdLineArgs).unixCmd;
 	}
@@ -177,4 +243,9 @@ UnixPlatform : Platform {
 			File.exists(path);
 		});
 	}
+
+	formatPathForCmdLine { |path|
+		^path.escapeChar($ );
+	}
+
 }

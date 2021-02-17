@@ -296,12 +296,18 @@ Dictionary : Set {
 
 	isAssociationArray { ^false }
 
-	asPairs {
-		^this.getPairs
+	asPairs { |class|
+		var res = (class ? Array).new(this.size * 2);
+		this.pairsDo { |key, val|
+			res.add(key).add(val);
+		};
+		^res
 	}
 
-	asDict {
-		^this
+	asDict { arg mergeFunc, class;
+		// the mergeFunc is ignored, because dictionary keys must differ
+		class = class ? IdentityDictionary;
+		^if(class.notNil and: { class == this.class }) { this } { this.as(class) }
 	}
 
 
@@ -363,6 +369,26 @@ Dictionary : Set {
 		});
 		^-2
 	}
+
+	== { arg that;
+		if (that === this) { ^true };
+		if(that.isKindOf(this.class).not) { ^false };
+		if(that.size != this.size) { ^false };
+		that.keysValuesDo { |key, val|
+			if(this.at(key) != val) { ^false }
+		};
+		^true
+	}
+
+	hash {
+		var hash = this.class.hash;
+		this.keysValuesDo { arg key, item;
+			hash = hash bitXor: item.hash;
+			hash = (hash << 1) bitXor: key.hash
+		};
+		^hash
+	}
+
 
 	storeItemsOn { arg stream, itemsPerLine = 5;
 		var itemsPerLinem1 = itemsPerLine - 1;
@@ -487,6 +513,21 @@ IdentityDictionary : Dictionary {
 		parent = newParent;
 	}
 
+	== { arg that;
+		^this.superPerform('==', that)
+		and: { parent == that.parent }
+		and: { proto == that.proto }
+		and: { know == that.know }
+	}
+
+	hash {
+		var hash = know.hash;
+		hash = (hash << 1) bitXor: parent.hash;
+		hash = (hash << 1) bitXor: proto.hash;
+		hash = (hash << 1) bitXor: super.hash;
+		^hash
+	}
+
 	storeItemsOn { arg stream, itemsPerLine = 5;
 		super.storeItemsOn(stream, itemsPerLine);
 		if(proto.notNil) { stream << "\n.proto_(" <<< proto << ")" };
@@ -506,7 +547,7 @@ IdentityDictionary : Dictionary {
 				selector = selector.asGetter;
 				if(this.respondsTo(selector)) {
 					warn(selector.asCompileString
-						+ "exists a method name, so you can't use it as pseudo-method.")
+						+ "exists as a method name, so you can't use it as a pseudo-method.")
 				};
 				^this[selector] = args[0];
 			};

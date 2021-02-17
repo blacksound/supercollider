@@ -20,8 +20,8 @@ argument::iphase
 
 Initial phase offset. For efficiency reasons this is a value
 ranging from 0 to 2.
-Note:: enter "1" for an initial phase of 0 radiants.
-A value of 0 would start the cycle at pi radiants. See the example below.::
+Note:: enter "1" for an initial phase of 0 radians.
+A value of 0 would start the cycle at pi radians. See the example below.::
 
 argument::mul
 Output will be multiplied by this value.
@@ -38,20 +38,10 @@ code::
 { LFSaw.ar(LFSaw.kr(4, 0, 200, 400), 0, 0.1) }.play
 
 ::
-Display special behaviour of initial phase parameter:
+
+Display the special behaviour of the initial phase parameter:
+
 code::
-// 0.15 seconds of 3-channel buffer
-b = Buffer.alloc(s, s.sampleRate * 0.15, 3);
-
-(
-// generate Signal
-m = SynthDef ("help-lfsawphase", {|rate = 20|
-	var l;
-	l = LFSaw.ar(rate, [0, 1, 2]); // three channels, three phases
-	RecordBuf.ar(l, b, doneAction: Done.freeSelf, loop: 0);
-	Out.ar(0, l * -20.dbamp);
-}).play(s);
-)
-
-b.plot;	// see the difference
+ // three channels, three phases
+{ LFSaw.ar(20, [0, 1, 2]) }.plot(0.1)
 ::

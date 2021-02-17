@@ -1,15 +1,17 @@
-project (SuperCollider)
+cmake_minimum_required(VERSION 3.5)
+include(SCVersion.txt)
+# CMake versions can only consist of digits and periods, so don't use _TWEAK
+project(SuperCollider VERSION ${SC_VERSION_MAJOR}.${SC_VERSION_MINOR}.${SC_VERSION_PATCH})
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
 	set(LINUX 1)
 endif()
 
-cmake_minimum_required (VERSION 2.8.12)
-set(SUPERNOVA_CMAKE_MINVERSION 3.1)
+if(CMAKE_SYSTEM_NAME MATCHES "Linux|FreeBSD|DragonFly|OpenBSD|NetBSD")
+    set(LINUX_OR_BSD 1)
+endif()
 
-include("SCVersion.txt")
-set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}${PROJECT_VERSION_PATCH}")
-message(STATUS "SuperCollider Version: ${PROJECT_VERSION}")
+message(STATUS "SuperCollider Version: ${SC_VERSION}")
 message(STATUS "Building from branch ${GIT_BRANCH}, commit hash is ${GIT_COMMIT_HASH}")
 include(CTest)
 enable_testing()
@@ -37,6 +39,32 @@ CONFIGURE_FILE(
   "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
   IMMEDIATE @ONLY)
 
+# workaround for using ccache with Xcode generator
+# thanks to Craig Scott: https://crascit.com/2016/04/09/using-ccache-with-cmake/
+get_property(RULE_LAUNCH_COMPILE GLOBAL PROPERTY RULE_LAUNCH_COMPILE)
+if(RULE_LAUNCH_COMPILE AND CMAKE_GENERATOR STREQUAL "Xcode")
+
+    # find ccache
+    find_program(CCACHE_PROGRAM ccache)
+
+    message(STATUS "Xcode and ccache detected: using ccache to speed up build process")
+
+    # Set up wrapper scripts
+    set(SC_LAUNCH_C_SCRIPT   "${CMAKE_BINARY_DIR}/launch-c")
+    set(SC_LAUNCH_CXX_SCRIPT "${CMAKE_BINARY_DIR}/launch-cxx")
+
+    configure_file("cmake_modules/launch-c.in"   launch-c)
+    configure_file("cmake_modules/launch-cxx.in" launch-cxx)
+    execute_process(COMMAND chmod a+rx "${SC_LAUNCH_C_SCRIPT}" "${SC_LAUNCH_CXX_SCRIPT}")
+
+    # Set Xcode project attributes to route compilation and linking
+    # through our scripts
+    set(CMAKE_XCODE_ATTRIBUTE_CC         "${SC_LAUNCH_C_SCRIPT}")
+    set(CMAKE_XCODE_ATTRIBUTE_CXX        "${SC_LAUNCH_CXX_SCRIPT}")
+    set(CMAKE_XCODE_ATTRIBUTE_LD         "${SC_LAUNCH_C_SCRIPT}")
+    set(CMAKE_XCODE_ATTRIBUTE_LDPLUSPLUS "${SC_LAUNCH_CXX_SCRIPT}")
+endif()
+
 ADD_CUSTOM_TARGET(uninstall
   "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 
@@ -45,7 +73,7 @@ ADD_CUSTOM_TARGET(uninstall
 if(WIN32)
     SET(SC_WIN_BUNDLE_NAME "SuperCollider" CACHE STRING "Folder name of SC install")
 
-    if(CMAKE_CL_64 OR "$ENV{MSYSTEM}" MATCHES "64" OR CMAKE_C_COMPILER MATCHES "64")
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         SET(CMAKE_LIBRARY_ARCHITECTURE "x64" CACHE STRING "Architecture of target system (for 64bit)")
     else()
         SET(CMAKE_LIBRARY_ARCHITECTURE "x86" CACHE STRING "Architecture of target system (for 32bit)")
@@ -78,7 +106,7 @@ if (${CMAKE_COMPILER_IS_GNUCXX})
 		message(FATAL_ERROR "SuperCollider requires at least gcc-4.8 when compiled with gcc.")
 	endif()
 
-	add_definitions("-ffast-math -fsigned-zeros -fno-associative-math")
+	add_definitions("-fno-math-errno -fno-signaling-nans -fsigned-zeros -fno-associative-math")
 
 	if(APPLE)
 		exec_program(${CMAKE_CXX_COMPILER} ARGS --version OUTPUT_VARIABLE _gcc_version_info)
@@ -101,7 +129,7 @@ endif()
 
 if(APPLE)
 	if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-		set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/Install" CACHE STRING "Cmake install path")
+		set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/Install" CACHE STRING "Cmake install path" FORCE)
 	endif()
 elseif(UNIX)
 	add_definitions(-DSC_DATA_DIR="${CMAKE_INSTALL_PREFIX}/share/SuperCollider")
@@ -115,7 +143,7 @@ if(WIN32)
 
 endif()
 
-add_definitions(-DBOOST_CHRONO_HEADER_ONLY -DBOOST_NO_AUTO_PTR)
+add_definitions(-DBOOST_CHRONO_HEADER_ONLY -DBOOST_NO_AUTO_PTR -DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE)
 
 
 #############################################
@@ -135,7 +163,7 @@ option(FINAL_BUILD "Build as single source file." OFF)
 
 option(FFT_GREEN "Use internal 'Green' FFT lib rather than FFTW. (Not recommended.)" OFF)
 
-if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "^arm")
+if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "^arm|aarch64")
     option(SSE "Compile with support for SSE instructions." ON)
     option(SSE2 "Compile with support for SSE2 instructions." ON)
 else() # ARM platforms do not have SSE
@@ -169,15 +197,12 @@ else()
     set(SC_IDE False)
   endif()
 endif (SC_QT)
-
+option(NO_X11 "Disables the building of plugins that require the X11 library (for UI-less compiles)" OFF)
 
 option(ENABLE_TESTSUITE "Compile testsuite." ON)
 
-if(CMAKE_SYSTEM_NAME MATCHES "Linux" AND NOT CMAKE_VERSION VERSION_LESS SUPERNOVA_CMAKE_MINVERSION)
-    option(SUPERNOVA "Build with supernova as optional audio synthesis server" ON)
-else()
-    option(SUPERNOVA "Build with supernova as optional audio synthesis server" OFF)
-endif()
+# Build supernova by default only when on Linux or BSD systems
+option(SUPERNOVA "Build with supernova as optional audio synthesis server" ${LINUX_OR_BSD})
 
 option(SN_MEMORY_DEBUGGING "Build supernova for memory debugging (disable memory pools).")
 option(SC_MEMORY_DEBUGGING "Build sclang&scsynth for memory debugging (disable memory pools).")
@@ -192,8 +217,6 @@ endif(WIN32)
 option(NO_GPL3 "Disable GPL3 code, for pure-GPL2 situations. (Not recommended.)" OFF)
 
 option(SCLANG_SERVER "Build with internal server." ON)
-
-option(SC_WII "Build sclang with WII support (broken on osx after 10.7)" OFF)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_CLANG)
     option(NATIVE "Optimize binary for this architecture (binaries may not run on other machines).")
@@ -216,6 +239,8 @@ else()
     option(SC_HIDAPI "Build with HID support" ON)
 endif()
 
+option(SC_ABLETON_LINK "Build with Ableton Link support" ON)
+
 #############################################
 # some default libraries
 
@@ -229,20 +254,44 @@ if (NOT WIN32)
 endif()
 
 if(SYSTEM_BOOST)
-  set(Boost_USE_MULTITHREADED      ON)
-  find_package( Boost 1.50.0 COMPONENTS  thread system filesystem program_options regex test_exec_monitor )
-endif()
-
-if (Boost_FOUND)
-	link_directories(${Boost_LIBRARY_DIRS})
+    # https://github.com/supercollider/supercollider/issues/4576#issuecomment-531499017
+    # Boost >= 1.71 ships with its own Boost config file, we ignore it for now.
+    set(Boost_NO_BOOST_CMAKE ON)
+    set(Boost_USE_MULTITHREADED ON)
+    find_package( Boost 1.50.0 COMPONENTS  thread system filesystem program_options regex test_exec_monitor )
+    if (Boost_FOUND)
+        # we're specifically setting up the boost libraries here, so we can
+        # name them
+        add_library(boost_thread_lib SHARED IMPORTED)
+        set_property(TARGET boost_thread_lib PROPERTY IMPORTED_LOCATION
+          ${Boost_THREAD_LIBRARY})
+        add_library(boost_system_lib SHARED IMPORTED)
+        set_property(TARGET boost_system_lib PROPERTY IMPORTED_LOCATION
+          ${Boost_SYSTEM_LIBRARY})
+        add_library(boost_filesystem_lib SHARED IMPORTED)
+        set_property(TARGET boost_filesystem_lib PROPERTY IMPORTED_LOCATION
+          ${Boost_FILESYSTEM_LIBRARY})
+        add_library(boost_program_options_lib SHARED IMPORTED)
+        set_property(TARGET boost_program_options_lib PROPERTY
+          IMPORTED_LOCATION ${Boost_PROGRAM_OPTIONS_LIBRARY})
+        add_library(boost_regex_lib SHARED IMPORTED)
+        set_property(TARGET boost_regex_lib PROPERTY IMPORTED_LOCATION
+          ${Boost_REGEX_LIBRARY})
+        add_library(boost_test_exec_monitor_lib SHARED IMPORTED)
+        set_property(TARGET boost_test_exec_monitor_lib PROPERTY
+          IMPORTED_LOCATION ${Boost_TEST_EXEC_MONITOR_LIBRARY})
+        set(boost_include_dirs ${Boost_INCLUDE_DIRS})
+    else()
+        message(FATAL_ERROR "Not able to use system boost because none was found.")
+    endif()
 else()
-	message(STATUS "building boost libraries manually")
+    set(boost_include_dirs ${CMAKE_SOURCE_DIR}/external_libraries/boost)
 endif()
 
 if(SYSTEM_YAMLCPP)
   find_package(YamlCpp)
 else()
-  set(YAMLCPP_FOUND OFF)
+  set(SYSTEM_YAMLCPP OFF)
 endif()
 
 #############################################
@@ -352,6 +401,7 @@ endif()
 
 #############################################
 # subdirectories
+add_subdirectory(tools)
 add_subdirectory(external_libraries)
 
 if(NOT YAMLCPP_FOUND)
@@ -401,11 +451,15 @@ endif()
 set(SCCLASSLIB_EXCLUDE_REGEX "IGNOREME")
 
 if(NOT SC_QT)
-	set(SCCLASSLIB_EXCLUDE_REGEX "${SCCLASSLIB_EXCLUDE_REGEX}|QtCollider")
+	set(SCCLASSLIB_EXCLUDE_REGEX "${SCCLASSLIB_EXCLUDE_REGEX}|/GUI$")
 endif()
 
 if(WIN32)
 	set(SCCLASSLIB_EXCLUDE_REGEX "${SCCLASSLIB_EXCLUDE_REGEX}")
+endif()
+
+if(NOT SC_ABLETON_LINK)
+	set(SCCLASSLIB_EXCLUDE_REGEX "${SCCLASSLIB_EXCLUDE_REGEX}|/Ableton$")
 endif()
 
 if(APPLE)
@@ -426,10 +480,8 @@ if(APPLE)
 		#symlink the folders inside SCCLassLibrary. Check if QtCollider folder should be symlinked or not.
 		file(GLOB classlibraryfolders RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary" "SCClassLibrary/[^.]*")
 		foreach(onedirectory ${classlibraryfolders})
-			if(NOT "${onedirectory}" MATCHES "${SCCLASSLIB_EXCLUDE_REGEX}")
-				install( CODE
-					"EXECUTE_PROCESS(COMMAND ln -shF ${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary/${onedirectory} ${CMAKE_INSTALL_PREFIX}/${auxresourcesdir}/SCClassLibrary/${onedirectory} )" )
-			endif()
+			install( CODE
+				"EXECUTE_PROCESS(COMMAND ln -shF ${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary/${onedirectory} ${CMAKE_INSTALL_PREFIX}/${auxresourcesdir}/SCClassLibrary/${onedirectory} )" )
 		endforeach(onedirectory)
 	endif()
 else()
@@ -487,7 +539,6 @@ if(INSTALL_HELP)
 	elseif(NOT APPLE)
 		install(DIRECTORY HelpSource
 			DESTINATION ${auxresourcesdir}
-			REGEX ${SCCLASSLIB_EXCLUDE_REGEX} EXCLUDE
 			PATTERN "*~" EXCLUDE
 			PATTERN "*#" EXCLUDE
 		)
@@ -499,18 +550,13 @@ endif()
 #
 # build scdoc help files
 #
-list(APPEND BUILD_CLASSLIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary/Common")
-list(APPEND BUILD_CLASSLIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary/Platform")
-list(APPEND BUILD_CLASSLIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary/SCDoc")
-list(APPEND BUILD_CLASSLIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary/DefaultLibrary")
-list(APPEND BUILD_CLASSLIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary/JITLib")
-list(APPEND BUILD_CLASSLIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary/backwards_compatibility")
+list(APPEND BUILD_CLASSLIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/SCClassLibrary")
 
 # this folder has an extension to Platform that disables the loadStartupFiles method
 list(APPEND BUILD_CLASSLIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/platform/disable_startup_files")
 
 foreach(arg ${BUILD_CLASSLIBRARIES})
-	set(BUILD_CLASSLIBRARYPATH "${BUILD_CLASSLIBRARYPATH}+${arg}\n")
+	set(BUILD_CLASSLIBRARYPATH "${BUILD_CLASSLIBRARYPATH}  - ${arg}\n")
 endforeach()
 
 configure_file(build_sclang.cfg.in ${CMAKE_CURRENT_BINARY_DIR}/build_sclang.cfg)
@@ -520,8 +566,8 @@ if(SC_DOC_RENDER)
 	file(GLOB_RECURSE SCDocClasses RELATIVE SCClassLibrary/SCDoc *.sc)
 
 	add_custom_target(doc ALL
-		COMMAND $<TARGET_FILE_DIR:sclang>/sclang${CMAKE_EXECUTABLE_SUFFIX}
-			-l ${CMAKE_CURRENT_BINARY_DIR}/build_sclang.cfg
+		COMMAND sclang
+			-a -l ${CMAKE_CURRENT_BINARY_DIR}/build_sclang.cfg
 			platform/renderAllHelp.scd ${CMAKE_CURRENT_SOURCE_DIR}/HelpSource ${CMAKE_CURRENT_BINARY_DIR}/RenderedHelp
 		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 		DEPENDS sclang ${SCDocSources} ${SCDocClasses})
@@ -543,19 +589,20 @@ endif()
 #############################################
 # CPack support
 
-set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION_MAJOR ${SC_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${SC_VERSION_MINOR})
+# No restriction on version strings unlike for project()
+set(CPACK_PACKAGE_VERSION_PATCH ${SC_VERSION_PATCH}${SC_VERSION_TWEAK})
 
 if(APPLE)
 	set(CPACK_GENERATOR "DragNDrop")
 	set(CPACK_DMG_FORMAT "UDBZ")
 	set(CPACK_DMG_VOLUME_NAME "${scappbundlename}")
 	set(CPACK_SYSTEM_NAME "OSX")
-#	set(CPACK_PACKAGE_FILE_NAME "${scappbundlename}-${PROJECT_VERSION}")
+#	set(CPACK_PACKAGE_FILE_NAME "${scappbundlename}-${SC_VERSION}")
 	set(CPACK_DMG_DS_STORE "${CMAKE_SOURCE_DIR}/package/ds_store")
 	set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/package/background.png")
-    set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/icons/SCcube.icns")
+    set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/icons/sc_ide.icns")
 endif()
 
 if(NOT WIN32) # We define a custom 'package' target in platform/windows/CMakeLists.txt

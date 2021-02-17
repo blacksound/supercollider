@@ -93,6 +93,7 @@ method:: bars2beats
 method:: bar
 method:: nextBar
 method:: beatInBar
+method:: isRunning
 
 INSTANCEMETHODS::
 
@@ -104,8 +105,11 @@ Destroys the scheduler and releases the OS thread running the scheduler.
 method::clear
 Removes all tasks from the scheduling queue.
 
+method::isRunning
+returns:: A Boolean, true if the clock is active or false if the clock has been stopped.
+
 method::tempo
-Sets or gets the current tempo in beats per second.
+Sets or gets the current tempo in beats per second at the current strong::logical time::.
 code::
 t= TempoClock.new;
 t.tempo_(2.0); // equivalent to t.tempo = 2.0;
@@ -113,6 +117,9 @@ t.tempo;
 t.tempo_(72/60) // 72 beats per minute
 t.tempo;
 ::
+
+method::etempo
+Sets or gets the current tempo at the current strong::elapsed time::.
 
 method::permanent
 Sets or gets a link::Classes/Boolean:: value indicating whether the clock will survive cmd-period. If false the clock is stopped (and thus removed) on cmd-period. If true the clock survives cmd-period. It is false by default.

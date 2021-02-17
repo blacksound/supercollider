@@ -8,7 +8,7 @@ WindowsPlatform : Platform {
 
 	initPlatform {
 		super.initPlatform;
-		recordingsDir = this.myDocumentsDir +/+ "SuperCollider" +/+ "Recordings";
+		recordingsDir = this.myDocumentsDir +/+ "Recordings";
 	}
 
 	startup {
@@ -23,12 +23,18 @@ WindowsPlatform : Platform {
 	}
 
 	pathSeparator { ^$\\ }
+    pathDelimiter { ^$; }
+
 	isPathSeparator { |char|
 		^#[$\\, $/].includes(char)
 	}
 	clearMetadata { |path|
 		path = path.splitext[0].do({ |chr, i| if(chr == $/) { path[i] = $\\.asAscii } });
 		"del %%.*meta%".format(34.asAscii, path, 34.asAscii).systemCmd;
+	}
+
+	killProcessByID { |pid|
+		("taskkill /F /pid " ++ pid).unixCmd;
 	}
 
 	killAll { |cmdLineArgs|
@@ -41,5 +47,12 @@ WindowsPlatform : Platform {
 		^if(File.exists(tmp)) { tmp }
 	}
 
-	myDocumentsDir { _WinPlatform_myDocumentsDir }
+	myDocumentsDir {
+		_WinPlatform_myDocumentsDir
+		^this.primitiveFailed
+	}
+
+	formatPathForCmdLine { |path|
+		^path.quote;
+	}
 }

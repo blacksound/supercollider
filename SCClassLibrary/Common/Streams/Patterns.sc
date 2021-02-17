@@ -79,7 +79,7 @@ Pattern : AbstractFunction {
 	drop { arg n; ^Pdrop(n, this) }
 	stutter { arg n; ^Pstutter(n, this) }
 	finDur { arg dur, tolerance = 0.001; ^Pfindur(dur, this, tolerance) }
-	fin { arg n; ^Pfin(n, this) }
+	fin { arg n = 1; ^Pfin(n, this) }
 
 	trace { arg key, printStream, prefix=""; ^Ptrace(this, key, printStream, prefix) }
 	differentiate { ^Pdiff(this) }
@@ -93,10 +93,13 @@ Pattern : AbstractFunction {
 	// dur: if nil, record until pattern stops or is stopped externally
 	// fadeTime: allow extra time after last Event for nodes to become silent
 
-	record { |path, headerFormat = "AIFF", sampleFormat = "float", numChannels = 2, dur = nil, fadeTime = 0.2, clock(TempoClock.default), protoEvent(Event.default), server(Server.default), out = 0, outNumChannels|
+	record { |path, headerFormat, sampleFormat, numChannels = 2, dur = nil, fadeTime = 0.2, clock(TempoClock.default), protoEvent(Event.default), server(Server.default), out = 0, outNumChannels|
 
 		var recorder = Recorder(server);
 		var pattern = if(dur.notNil) { Pfindur(dur, this) } { this };
+
+		recorder.recHeaderFormat = headerFormat;
+		recorder.recSampleFormat = sampleFormat;
 
 		server.waitForBoot {
 			var group, bus, startTime, free, monitor;
@@ -163,7 +166,7 @@ Pfuncn : Pattern {
 	storeArgs { ^[func,repeats] }
 	embedInStream {  arg inval;
 		repeats.value(inval).do({
-			inval = func.value(inval).processRest(inval).yield;
+			inval = func.value(inval).yield;
 		});
 		^inval
 	}
@@ -350,7 +353,7 @@ Pbind : Pattern {
 						^inevent
 					};
 					name.do { arg key, i;
-						event.put(key, streamout[i].processRest(event));
+						event.put(key, streamout[i]);
 					};
 				}{
 					event.put(name, streamout);
@@ -416,7 +419,6 @@ Pgeom : Pattern {	// geometric series
 		var cur = start.value(inval);
 		var len = length.value(inval);
 		var growStr = grow.asStream, growVal;
-
 		while { counter < len } {
 			growVal = growStr.next(inval);
 			if(growVal.isNil) { ^inval };
@@ -449,6 +451,7 @@ Pbrown : Pattern {
 		hiVal = hiStr.next(inval);
 		stepVal = stepStr.next(inval);
 		cur = rrand(loVal, hiVal);
+
 		if(loVal.isNil or: { hiVal.isNil } or: { stepVal.isNil }) { ^inval };
 
 		length.value(inval).do {
@@ -645,6 +648,10 @@ Pprotect : FilterPattern {
 	asStream {
 		var rout = Routine(pattern.embedInStream(_));
 		rout.exceptionHandler = { |error|
+			// 'func' might throw an error
+			// we must clear the exceptionHandler before that
+			// otherwise, infinite recursion is the result
+			rout.exceptionHandler = nil;
 			func.value(error, rout);
 			nil.handleError(error)
 		};
@@ -657,16 +664,28 @@ Pprotect : FilterPattern {
 // access a key from the input event
 Pkey : Pattern {
 	var	<>key, <>repeats;
-	*new { |key|
-		^super.newCopyArgs(key)
+
+	*new { |key, repeats|
+		^super.newCopyArgs(key, repeats)
 	}
-	storeArgs { ^[key] }
-		// avoid creating a routine
+
+	storeArgs { ^[key, repeats] }
+
 	asStream {
 		var	keystream = key.asStream;
-		^FuncStream({ |inevent|
-			inevent !? { inevent[keystream.next(inevent)] }
-		});
+		// avoid creating a routine
+		var stream = FuncStream({ |inevent| inevent !? { inevent[keystream.next(inevent)] } });
+		^if(repeats.isNil) { stream } { stream.fin(repeats) }
+	}
+
+	embedInStream { |inval|
+		var outval, keystream = key.asStream;
+		(repeats.value(inval) ?? { inf }).do {
+			outval = inval[keystream.next(inval)];
+			if(outval.isNil) { ^inval };
+			inval = outval.yield;
+		};
+		^inval
 	}
 }
 

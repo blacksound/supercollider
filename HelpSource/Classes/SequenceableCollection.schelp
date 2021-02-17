@@ -551,7 +551,7 @@ code::
 ::
 
 method::doAdjacentPairs
-Calls function for every adjacent pair of elements in the SequentialCollection. The function is passed the two adjacent elements and an index.
+Calls function for every adjacent pair of elements in the SequenceableCollection. The function is passed the two adjacent elements and an index.
 code::
 [1, 2, 3, 4, 5].doAdjacentPairs({ arg a, b; [a, b].postln; });
 ::
@@ -560,12 +560,6 @@ method::separate
 Separates the collection into sub-collections by calling the function for each adjacent pair of elements. If the function returns true, then a separation is made between the elements.
 code::
 [1, 2, 3, 5, 6, 8, 10].separate({ arg a, b; (b - a) > 1 }).postcs;
-::
-
-method::split
-Separates the collection into sub-collections at the separator element or subarray. The separator is a link::Classes/Collection::, or anything that can be converted into the class this method is called on. It is strong::not:: included in the output array. The default separator is $/, for the common use in link::Classes/String::.
-code::
-[1, 2, 1, 2, 3, 1, 2, 1, 3].split([2, 1])
 ::
 
 method::clump
@@ -599,15 +593,31 @@ code::
 ::
 
 method::reduce
-Applies the method named by operator to the first and second elements of the collection - then applies the method to the result and to the third element of the collection - then applies the method to the result and to the fourth element of the collection - and so on, until the end of the array.
+Applies the method named by operator to the first and second elements of the collection, and then applies the method to the result and to the third element of the collection, then applies the method to the result and to the fourth element of the collection, and so on, until the end of the array.
+
+If the collection contains only one element, it is returned as the result. If the collection is empty, returns code::nil::.
+
+argument::operator
+May be a link::Classes/Function:: (taking two or three arguments) or a link::Classes/Symbol:: (method selector).
+
+
 code::
 [3, 4, 5, 6].reduce('*'); // this is the same as [3, 4, 5, 6].product
 [3, 4, 5, 6].reduce(\lcm); // Lowest common multiple of the whole set of numbers
 ["d", "e", (0..9), "h"].reduce('++'); // concatenation
 [3, 4, 5, 6].reduce({ |a, b| sin(a) * sin(b) }); // product of sines
 ::
-argument::operator
-may be a link::Classes/Function:: or a link::Classes/Symbol::.
+
+
+argument::adverb
+An optional adverb to be used together with the operator (see link::Reference/Adverbs::). If the operator is a functions, the adverb is passed as a third argument.
+
+code::
+// compare:
+[1, 2] *.x [10, 20, 30]
+[[1, 2], [10, 20, 30]].reduce('*', 'x')
+[[1, 2], [10, 20, 30], [1000, 2000]].reduce('+', 'x') // but you can combine more
+::
 
 method::convertDigits
 Returns an integer resulting from interpreting the elements as digits to a given base (default 10). See also asDigits in link::Classes/Integer#asDigits:: for the complementary method.
@@ -630,7 +640,7 @@ subsection::Math Support - Unary Messages
 
 All of the following messages send the message link::#-performUnaryOp:: to the receiver with the unary message selector as an argument.
 
-method::neg, reciprocal, bitNot, abs, asFloat, asInt, ceil, floor, frac, sign, squared, cubed, sqrt, exp, midicps, cpsmidi, midiratio, ratiomidi, ampdb, dbamp, octcps, cpsoct, log, log2, log10, sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, rand, rand2, linrand, bilinrand, sum3rand, distort, softclip, coin, even, odd, isPositive, isNegative, isStrictlyPositive, real, imag, magnitude, magnitudeApx, phase, angle, rho, theta, asFloat, asInteger
+method::neg, reciprocal, bitNot, abs, asFloat, ceil, floor, frac, sign, squared, cubed, sqrt, exp, midicps, cpsmidi, midiratio, ratiomidi, ampdb, dbamp, octcps, cpsoct, log, log2, log10, sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, rand, rand2, linrand, bilinrand, sum3rand, distort, softclip, coin, even, odd, isPositive, isNegative, isStrictlyPositive, real, imag, magnitude, magnitudeApx, phase, angle, rho, theta, asFloat, asInteger
 
 method::performUnaryOp
 Creates a new collection of the results of applying the selector to all elements in the receiver.
@@ -643,7 +653,9 @@ subsection::Math Support - Binary Messages
 
 All of the following messages send the message link::#-performBinaryOp:: to the receiver with the binary message selector and the second operand as arguments.
 
-method::+, -, *, /, div, %, **, min, max, <, <=, >, >=, &, |, bitXor, lcm, gcd, round, trunc, atan2, hypot, >>, +>>, ring1, ring2, ring3, ring4, difsqr, sumsqr, sqrdif, absdif, amclip, scaleneg, clip2, excess, <!, rrand, exprand
+method:: +, -, *, /, div, min, max, <, <=, >, >=, bitXor, lcm, gcd, round, trunc, atan2, hypot, ring1, ring2, ring3, ring4, difsqr, sumsqr, sqrdif, absdif, amclip, scaleneg, clip2, excess, rrand, exprand
+
+method:: %, **, &, |, >>, +>>, <!
 
 method::performBinaryOp
 Creates a new collection of the results of applying the selector with the operand to all elements in the receiver. If the operand is a collection then elements of that collection are paired with elements of the receiver.
@@ -651,6 +663,156 @@ code::
 ([1, 2, 3, 4] * 10);
 ([1, 2, 3, 4] * [4, 5, 6, 7]);
 ::
+
+subsection::Math Support - Special Functions
+
+A variety of Special Functions are supplied by the Boost C++ library. The library's
+link::http://www.boost.org/doc/libs/1_66_0/libs/math/doc/html/special.html##online documentation::
+ serves as the primary reference for the following functions. The methods
+here match closely with those found in the source library, as do argument names.
+
+Below you'll find descriptions of the functions and their bounds, but for
+visualizing the functions, have a look in link::Guides/Tour-of-Special-Functions::.
+
+note::The following methods are documented slightly clearer in
+link::Classes/SimpleNumber#Special Functions:: using functional notation.
+As of this writing, a bug in the help file formatting misleadingly documents
+the methods in receiver notation (methods preceded by code::.::), but should
+be read to suggests the usage: code::foo([a], [b])::. The equivalent receiver
+notation is: code::[a].foo([b])::. Note that those methods with only one argument erroneously omit that
+argument from the argument list; each element in the collection is implicitly
+passed as the method's argument, e.g. code::foo([a]):: or code::[a].foo::::
+
+warning::Many of the functions are only valid in certain numerical ranges. For the most part, error handling
+happens in the underlying boost functions. While these errors are often obtuse, you'll usually find
+a useful message at the end of the error regarding proper ranges and the erroneous value supplied.
+Refer to the online documentation for more detailed descriptions, and the
+link::Guides/Tour-of-Special-Functions:: for plots showing ranges and asymptotes.::
+
+copymethod:: SimpleNumber -bernouliB2n
+copymethod:: SimpleNumber -tangentT2n
+copymethod:: SimpleNumber -tgamma
+copymethod:: SimpleNumber -tgamma1pm1
+copymethod:: SimpleNumber -lgamma
+copymethod:: SimpleNumber -digamma
+copymethod:: SimpleNumber -trigamma
+copymethod:: SimpleNumber -polygamma
+copymethod:: SimpleNumber -tgammaRatio
+copymethod:: SimpleNumber -tgammaDeltaRatio
+copymethod:: SimpleNumber -gammaP
+copymethod:: SimpleNumber -gammaQ
+copymethod:: SimpleNumber -tgammaLower
+copymethod:: SimpleNumber -tgammaUpper
+copymethod:: SimpleNumber -gammaPInv
+copymethod:: SimpleNumber -gammaQInv
+copymethod:: SimpleNumber -gammaPInvA
+copymethod:: SimpleNumber -gammaQInvA
+copymethod:: SimpleNumber -gammaPDerivative
+copymethod:: SimpleNumber -gammaQDerivative
+copymethod:: SimpleNumber -factorial
+copymethod:: SimpleNumber -doubleFactorial
+copymethod:: SimpleNumber -risingFactorial
+copymethod:: SimpleNumber -fallingFactorial
+copymethod:: SimpleNumber -binomialCoefficient
+copymethod:: SimpleNumber -beta
+copymethod:: SimpleNumber -ibeta
+copymethod:: SimpleNumber -ibetaC
+copymethod:: SimpleNumber -betaFull
+copymethod:: SimpleNumber -betaFullC
+copymethod:: SimpleNumber -ibetaInv
+copymethod:: SimpleNumber -ibetaCInv
+copymethod:: SimpleNumber -ibetaInvA
+copymethod:: SimpleNumber -ibetaCInvA
+copymethod:: SimpleNumber -ibetaInvB
+copymethod:: SimpleNumber -ibetaCInvB
+copymethod:: SimpleNumber -ibetaDerivative
+copymethod:: SimpleNumber -erf
+copymethod:: SimpleNumber -erfC
+copymethod:: SimpleNumber -erfInv
+copymethod:: SimpleNumber -erfCInv
+copymethod:: SimpleNumber -legendreP
+copymethod:: SimpleNumber -legendrePPrime
+copymethod:: SimpleNumber -legendrePZeros
+copymethod:: SimpleNumber -legendrePAssoc
+copymethod:: SimpleNumber -legendreQ
+copymethod:: SimpleNumber -laguerre
+copymethod:: SimpleNumber -laguerreAssoc
+copymethod:: SimpleNumber -hermite
+copymethod:: SimpleNumber -chebyshevT
+copymethod:: SimpleNumber -chebyshevU
+copymethod:: SimpleNumber -chebyshevTPrime
+copymethod:: SimpleNumber -chebyshevTZeros
+copymethod:: SimpleNumber -sphericalHarmonic
+copymethod:: SimpleNumber -sphericalHarmonicR
+copymethod:: SimpleNumber -sphericalHarmonicI
+copymethod:: SimpleNumber -cylBesselJ
+copymethod:: SimpleNumber -cylNeumann
+copymethod:: SimpleNumber -cylBesselJZero
+copymethod:: SimpleNumber -cylNeumannZero
+copymethod:: SimpleNumber -cylBesselI
+copymethod:: SimpleNumber -cylBesselK
+copymethod:: SimpleNumber -sphBessel
+copymethod:: SimpleNumber -sphNeumann
+copymethod:: SimpleNumber -cylBesselJPrime
+copymethod:: SimpleNumber -cylNeumannPrime
+copymethod:: SimpleNumber -cylBesselIPrime
+copymethod:: SimpleNumber -cylBesselKPrime
+copymethod:: SimpleNumber -sphBesselPrime
+copymethod:: SimpleNumber -sphNeumannPrime
+copymethod:: SimpleNumber -cylHankel1
+copymethod:: SimpleNumber -cylHankel2
+copymethod:: SimpleNumber -sphHankel1
+copymethod:: SimpleNumber -sphHankel2
+copymethod:: SimpleNumber -airyAi
+copymethod:: SimpleNumber -airyBi
+copymethod:: SimpleNumber -airyAiPrime
+copymethod:: SimpleNumber -airyBiPrime
+copymethod:: SimpleNumber -airyAiZero
+copymethod:: SimpleNumber -airyBiZero
+copymethod:: SimpleNumber -ellintRf
+copymethod:: SimpleNumber -ellintRd
+copymethod:: SimpleNumber -ellintRj
+copymethod:: SimpleNumber -ellintRc
+copymethod:: SimpleNumber -ellintRg
+copymethod:: SimpleNumber -ellint1
+copymethod:: SimpleNumber -ellint1C
+copymethod:: SimpleNumber -ellint2
+copymethod:: SimpleNumber -ellint2C
+copymethod:: SimpleNumber -ellint3
+copymethod:: SimpleNumber -ellint3C
+copymethod:: SimpleNumber -ellintD
+copymethod:: SimpleNumber -ellintDC
+copymethod:: SimpleNumber -jacobiZeta
+copymethod:: SimpleNumber -heumanLambda
+copymethod:: SimpleNumber -jacobiCd
+copymethod:: SimpleNumber -jacobiCn
+copymethod:: SimpleNumber -jacobiCs
+copymethod:: SimpleNumber -jacobiDc
+copymethod:: SimpleNumber -jacobiDn
+copymethod:: SimpleNumber -jacobiDs
+copymethod:: SimpleNumber -jacobiNc
+copymethod:: SimpleNumber -jacobiNd
+copymethod:: SimpleNumber -jacobiNs
+copymethod:: SimpleNumber -jacobiSc
+copymethod:: SimpleNumber -jacobiSd
+copymethod:: SimpleNumber -jacobiSn
+copymethod:: SimpleNumber -zeta
+copymethod:: SimpleNumber -expintEn
+copymethod:: SimpleNumber -expintEi
+copymethod:: SimpleNumber -sinPi
+copymethod:: SimpleNumber -cosPi
+copymethod:: SimpleNumber -log1p
+copymethod:: SimpleNumber -expm1
+copymethod:: SimpleNumber -cbrt
+copymethod:: SimpleNumber -sqrt1pm1
+copymethod:: SimpleNumber -powm1
+copymethod:: SimpleNumber -sincPi
+copymethod:: SimpleNumber -sinhcPi
+copymethod:: SimpleNumber -asinh
+copymethod:: SimpleNumber -acosh
+copymethod:: SimpleNumber -atanh
+copymethod:: SimpleNumber -owensT
+
 
 subsection::Multichannel wrappers
 All of the following messages are performed on the elements of this collection, using link::Classes/Object#-multiChannelPerform::.
@@ -695,3 +857,29 @@ code::
 Pbind(\degree, Pseries(0, 1, inf), \dur, Pseq([2, [1, [1, [2, 1, 1, -1]]], 2].convertRhythm)).play;
 ::
 
+subsection:: Starting UNIX processes
+
+private::prUnixCmd
+
+method::unixCmd
+Execute a UNIX command strong::asynchronously::. This object should be an array of strings where the first string is the path to the executable to be run and all other strings are passed as arguments to the executable. This method starts the process directly without using a shell.
+argument:: action
+A link::Classes/Function:: that is called when the process has exited. It is passed two arguments: the exit code and pid of the exited process.
+argument:: postOutput
+A link::Classes/Boolean:: that controls whether or not the output of the process is displayed in the post window.
+returns::
+An link::Classes/Integer:: - the pid of the newly created process. Use link::Classes/Integer#-pidRunning:: to test if a process is alive.
+discussion::
+Example:
+code::
+["ls","/"].unixCmd;
+::
+
+method::unixCmdGetStdOut
+Similar to link::#-unixCmd:: except that the stdout of the process is returned (strong::synchronously::) rather than sent to the post window. This object should be an array of strings where the first string is the path to the executable to be run and all other strings are passed as arguments to the executable. This method starts the process directly without using a shell.
+code::
+~listing = ["ls","/"].unixCmdGetStdOut; // Grab
+~listing.reverse.as(Array).stutter.join.postln; // Mangle
+::
+
+private:: acosh, airyAi, airyAiPrime, airyAiZero, acosh, airyAi, airyAiPrime, airyAiZero, airyBi, airyBiPrime, airyBiZero, asinh, atanh, bernouliB2n, beta, betaFull, betaFullC, binomialCoefficient, cbrt, chebyshevT, chebyshevTPrime, chebyshevTZeros, chebyshevU, cosPi, cylBesselI, cylBesselIPrime, cylBesselJ, cylBesselJPrime, cylBesselJZero, cylBesselK, cylBesselKPrime, cylHankel1, cylHankel2, cylNeumann, cylNeumannPrime, cylNeumannZero, digamma, doubleFactorial, ellint1, ellint1C, ellint2, ellint2C, ellint3, ellint3C, ellintD, ellintDC, ellintRc, ellintRd, ellintRf, ellintRg, ellintRj, erf, erfC, erfCInv, erfInv, expintEi, expintEn, expm1, factorial, fallingFactorial, gammaP, gammaPDerivative, gammaPInv, gammaPInvA, gammaQ, gammaQDerivative, gammaQInv, gammaQInvA, hermite, heumanLambda, ibeta, ibetaC, ibetaCInv, ibetaCInvA, ibetaCInvB, ibetaDerivative, ibetaInv, ibetaInvA, ibetaInvB, jacobiCd, jacobiCn, jacobiCs, jacobiDc, jacobiDn, jacobiDs, jacobiNc, jacobiNd, jacobiNs, jacobiSc, jacobiSd, jacobiSn, jacobiZeta, laguerre, laguerreAssoc, legendreP, legendrePAssoc, legendrePPrime, legendrePZeros, legendreQ, lgamma, log1p, owensT, polygamma, pow, powm1, prHermite, prLaguerreAssoc, prLegendreQ, risingFactorial, sinPi, sincPi, sinhcPi, sphBessel, sphBesselPrime, sphHankel1, sphHankel2, sphNeumann, sphNeumannPrime, sphericalHarmonic, sphericalHarmonicI, sphericalHarmonicR, sqrt1pm1, tangentT2n, tgamma, tgamma1pm1, tgammaDeltaRatio, tgammaLower, tgammaRatio, tgammaUpper, trigamma, zeta

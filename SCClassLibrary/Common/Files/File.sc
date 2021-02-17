@@ -1,6 +1,6 @@
 File : UnixFILE {
 
-	classvar <openDialogs, <systemIsCaseSensitive;
+	classvar <systemIsCaseSensitive;
 
 	*initClass {
 		var f = this.filenameSymbol.asString;
@@ -18,8 +18,32 @@ File : UnixFILE {
 		file = this.new(pathName, mode);
 		^{ function.value(file) }.protect({ file.close });
 	}
+	*readAllString { arg pathName;
+		var string;
+		this.use(pathName, "r", { |file| string = file.readAllString });
+		^string
+	}
+	*readAllSignal { arg pathName;
+		var string;
+		this.use(pathName, "r", { |file| string = file.readAllSignal });
+		^string
+	}
+	*readAllStringHTML { arg pathName;
+		var string;
+		this.use(pathName, "r", { |file| string = file.readAllStringHTML });
+		^string
+	}
+	*readAllStringRTF { arg pathName;
+		var string;
+		this.use(pathName, "r", { |file| string = file.readAllStringRTF });
+		^string
+	}
 	*delete { arg pathName;
 		_FileDelete
+		^this.primitiveFailed
+	}
+	*deleteAll { arg pathName;
+		_FileDeleteAll
 		^this.primitiveFailed
 	}
 	*mtime { arg pathName;
@@ -63,12 +87,12 @@ File : UnixFILE {
 		_FileSize
 		^this.primitiveFailed
 	}
-
 	*getcwd {
 		var string;
 		this.prGetcwd(string = String.new(256));
 		^string
 	}
+
 	open { arg pathName, mode;
 		/* open the file. mode is a string passed
 			to fopen, so should be one of:
@@ -153,7 +177,11 @@ Pipe : UnixFILE {
 
 	// pipe stdin to, or stdout from, a unix shell command.
 	*new { arg commandLine, mode;
-		^super.new.open(commandLine, mode);
+		^super.new.open(commandLine, mode)
+	}
+
+	*argv { arg args, mode;
+		^super.new.openArgv(args, mode);
 	}
 
 	*call { arg command, onSuccess, onError, maxLineLength=4096;
@@ -213,19 +241,29 @@ Pipe : UnixFILE {
 		}
 	}
 
+	openArgv { arg args, mode;
+		/* open the file. mode is a string passed
+			to popen, so should be one of:
+			"r","w"
+		*/
+		if ((pid = this.prOpenArgv(args, mode)).notNil) {
+			this.addOpenFile;
+		}
+	}
+
 	close {
 		var res = this.prClose(pid);
 		fileptr = nil;
 		pid = nil;
 		openFiles.remove(this);
-		^res;
+		^res
 	}
 
 	// close the file
 	prClose { arg pid;
 		// the GC will not call this for you
 		_PipeClose
-		^this.primitiveFailed;
+		^this.primitiveFailed
 	}
 
 
@@ -236,6 +274,15 @@ Pipe : UnixFILE {
 			"r","w"
 		*/
 		_PipeOpen
-		^this.primitiveFailed;
+		^this.primitiveFailed
+	}
+
+	prOpenArgv { arg  args, mode;
+		/* open the file with explicit list of arguments. mode is a string passed
+			to popen, so should be one of:
+			"r","w"
+		*/
+		_PipeOpenArgv
+		^this.primitiveFailed
 	}
 }

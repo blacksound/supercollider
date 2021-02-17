@@ -1,5 +1,5 @@
-SuperCollider 3.8 for macOS (OS X)
-==================================
+Welcome to SuperCollider for macOS!
+===================================
 
 These are installation and build instructions for the macOS version of James McCartney's SuperCollider synthesis engine (scsynth) and programming language (sclang).
 
@@ -7,7 +7,8 @@ Pre-compiled releases are available for download at:
 
 https://github.com/SuperCollider/SuperCollider/releases
 
-
+You can also download a bleeding-edge build of the latest development branch
+[here](http://supercollider.s3.amazonaws.com/builds/supercollider/supercollider/osx/develop-latest.html).
 
 Table of contents
 -----------------
@@ -18,6 +19,7 @@ Table of contents
  * Diagnosing build problems
  * Frequently used cmake settings
  * Using cmake with Xcode or QtCreator
+ * Using ccache with Xcode
  * Building without Qt or the IDE
  * sclang and scynth executables
 
@@ -26,42 +28,37 @@ Executables
 
 `SuperCollider.app` is the IDE (integrated development environment) for writing and executing SuperCollider code.
 
-Inside that application's folder (`SuperCollider.app/Contents/MacOS/`) are the two executables that make up supercollider itself:
+Inside that application are the executables that make up SuperCollider itself:
 
-`sclang` - the language interpreter including Qt gui
-`scsynth` - the audio engine
-
+- `sclang`, the language interpreter including Qt GUI components
+- `SuperCollider`, the IDE executable launched by the app
+- `scsynth`, the original audio engine
+- `supernova`, the newer audio engine which supports multithreading
 
 Prerequisites:
 -------------
 
-- **Xcode** can be installed free from the Apple App Store or downloaded from: http://developer.apple.com
-
-  - Xcode 5 may work
-  - Xcode 6 is known to work - it requires a Mac running macOS version 10.9.4 or later or 10.10
-  - Later versions should definitely work
-
-- **Xcode command line tools** must be installed - after installing Xcode, this can be done from the Xcode preferences or from the command line:
+- **Xcode** can be installed free from the Apple App Store or downloaded from: http://developer.apple.com.
+  Xcode >= 8 is recommended; use earlier versions at your own risk.
+- If you do not have the **Xcode command line tools** installed already, install them with:
   `xcode-select --install`
 - **homebrew** is recommended to install required libraries
   See http://brew.sh for installation instructions.
-- **git, cmake, libsndfile, readline, and qt5.5**, installed via homebrew:
-  `brew install git cmake readline qt55`
+- **git, cmake >= 3.5, libsndfile, readline, and qt5 >= 5.7**, installed via homebrew:
+  `brew install git cmake libsndfile readline qt5`
+- If you are building with Qt libraries, you will also need the [requirements for
+  QtWebEngine](https://doc.qt.io/qt-5/qtwebengine-platform-notes.html#macos), specifically macOS
+  10.9 and the macOS SDK for 10.10 or later.
 
-  *Note*: As of this writing the latest stable Qt is version 5.8. SC depends on Qt5WebKit, which was dropped from the binary distributions of Qt since version 5.6 (functionally replaced by Qt5WebEngine). Therefore you cannot simply install the latest Qt5 via homebrew and rely on the defaults. You can either install qt55 (accessed at /usr/local/opt/qt@55) and replace `brew --prefix qt5` by `brew --prefix qt55` in
-  the build instructions below, or install the current Qt version with the option `--with-qtwebkit`. As this is a non-standard install, brew will build qt5 locally (go drink a coffee).
-  If you already had Qt5, and and your build broke after an update, or if you need several Qt5 installs, you can set the version to be used by default with `brew switch`. (for example `brew switch qt5 5.5.1_2`, you can also "freeze" the Qt5 version with `brew pin`).
+- If you want to build with the *supernova* server, you need **portaudio** and **fftw** packages, which can also be installed via homebrew:
+  `brew install portaudio fftw`
 
 Obtaining the source code
 -------------------------
 
-**Note** Please do not use non-ASCII characters (above code point 127) in your
-SuperCollider program path (i.e. the names of the folders containing SuperCollider).
-Doing so will break options to open class or method files.
+SuperCollider is hosted on Github: https://github.com/SuperCollider/SuperCollider
 
-SC is on Github: https://github.com/SuperCollider/SuperCollider
-
-Get a copy of the source code:
+First, clone the repository with git:
 
     git clone --recursive https://github.com/SuperCollider/SuperCollider.git
 
@@ -74,6 +71,9 @@ Build instructions
     mkdir -p build
     cd build
     cmake -G Xcode -DCMAKE_PREFIX_PATH=`brew --prefix qt5`  ..
+    # or, if you want to build with supernova:
+    cmake -G Xcode -DCMAKE_PREFIX_PATH=`brew --prefix qt5` -DSUPERNOVA=ON ..
+    # then start the build
     cmake --build . --target install --config RelWithDebInfo
 
 If successful this will build the application into `build/Install/SuperCollider/`
@@ -81,6 +81,8 @@ If successful this will build the application into `build/Install/SuperCollider/
 You can see the available build options with ```cmake -LH```.
 
 To install, you may move this to /Applications or use it in place from the build directory.
+
+More info on *supernova* can be found in the section **Frequently used cmake settings** below.
 
 **Note**: You can also open the produced SuperCollider.xcodeproj in Xcode, and build the "Install" scheme in place of the last step. Do make sure you run the previous configuration steps.
 
@@ -97,9 +99,8 @@ To install, you may move this to /Applications or use it in place from the build
 
 (The `..` at the end is easy to miss. Don't forget it!)
 
-This specifies to cmake that we will be using Xcode to build. It also specifies the location of qt so that the complier/linker can find it
-(note that you might have to set `qt55` instead of `qt5`, depending on how you installed you qt5 version (see above, "Prerequisites")).
-`brew --prefix qt5` will be expanded to the path to current Qt5 when the command is run.
+This specifies to cmake that we will be using Xcode to build. It also specifies the location of qt so that the complier/linker can find it.
+Use `brew info` to confirm you are referring to the correct version of Qt.
 
 If you are not using the Homebrew install then you should substitute the path to the parent folder of the bin/include/lib folders in that
 Qt tree.
@@ -230,15 +231,11 @@ Common arguments to control the build configuration are:
 
     Check sc help for `ParGroup` to see how to make use of multi-core hardware.
 
-  * Build a 32-bit version (sc 3.6 only):
+  * By default the build will only be compatible with the macOS (and
+    subsequent versions) on which the compiler was run. To build with compatibility
+    for previous versions of macOS, you can use e.g.:
 
-    `-DCMAKE_OSX_ARCHITECTURES='i386'`
-
-    or combine a 32- and 64-bit version into a bundle (i.e. build a universal binary).
-    This is only possible up until macOS 10.6 and requires the dependencies (Qtlibs &
-    readline) to be universal builds too:
-
-    `-DCMAKE_OSX_ARCHITECTURES='i386;x86_64'`
+    `-DCMAKE_OSX_DEPLOYMENT_TARGET=10.10`
 
   * Homebrew installations of libsndfile should be detected automatically. To link to a
     version of libsndfile that is not installed in /usr/local/include|lib, you can use:
@@ -276,6 +273,12 @@ Qt Creator has very good `cmake` integration and can build `cmake` projects with
 
     brew linkapps qt5
 
+Using ccache with Xcode
+-----------------------
+
+Although cmake does not support using `ccache` with Xcode out of the box, this project is set up to
+allow it with the option `-DRULE_LAUNCH_COMPILE=ccache`. This can speed up build times
+significantly, even when the build directory has been cleared.
 
 Building without Qt or the IDE
 ------------------------------
@@ -333,7 +336,7 @@ And for `scsynth`:
 
     #!/bin/sh
     cd /full/path/to/SuperCollider.app/Contents/Resources
-    export SC_PLUGIN_PATH="/full/path/to/SuperCollider.app/Resources/plugins/";
+    export SC_PLUGIN_PATH="/full/path/to/SuperCollider.app/Contents/Resources/plugins/";
     exec ./scsynth $*
 
 ###### Why not just symlink them ?

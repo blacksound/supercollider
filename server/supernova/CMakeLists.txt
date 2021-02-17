@@ -1,5 +1,3 @@
-cmake_minimum_required( VERSION 3.1 )
-
 if(CMAKE_COMPILER_IS_GNUCXX)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-depth-4096")
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fomit-frame-pointer")
@@ -17,6 +15,26 @@ if(APPLE)
     include_directories(${CMAKE_SOURCE_DIR}/external_libraries/libsndfile)
 endif()
 
+# here we choose who provides us with the FFT lib
+# this is done independently for scsynth and supernova
+# scsynth uses vDSP implementation for FFT on macOS
+# however current implementation of vDSP is not thread-safe
+# so we use FFTW with supernova on macOS
+# once vDSP implementation becomes thread-safe
+# this logic can be reworked to use vDSP on macOS
+
+find_package(FFTW3f 3.3)
+
+if (NOT FFTW3F_FOUND OR FFT_GREEN)
+    message(STATUS "FFT library (supernova): Green")
+    set(FFT_GREEN 1)
+    add_definitions("-DSC_FFT_GREEN")
+else()
+    message(STATUS "Found fftw3f: ${FFTW3F_LIBRARY}")
+    message(STATUS "FFT library (supernova): FFTW")
+    add_definitions("-DSC_FFT_FFTW")
+endif()
+
 set(libsupernova_src
     sc/sc_synth_definition.cpp
     sc/sc_osc_handler.cpp
@@ -24,11 +42,16 @@ set(libsupernova_src
     sc/sc_synth.cpp
     sc/sc_synthdef.cpp
     sc/sc_ugen_factory.cpp
+
+    ${CMAKE_SOURCE_DIR}/common/SC_Filesystem_macos.cpp
+    ${CMAKE_SOURCE_DIR}/common/SC_Filesystem_win.cpp
+    ${CMAKE_SOURCE_DIR}/common/SC_Filesystem_unix.cpp
+    ${CMAKE_SOURCE_DIR}/common/SC_Filesystem_iphone.cpp
+
     ${CMAKE_SOURCE_DIR}/common/Samp.cpp
     ${CMAKE_SOURCE_DIR}/common/SC_fftlib.cpp
-    ${CMAKE_SOURCE_DIR}/common/SC_DirUtils.cpp
     ${CMAKE_SOURCE_DIR}/common/SC_StringParser.cpp
-    ${CMAKE_SOURCE_DIR}/common/SC_StandAloneInfo_Darwin.cpp
+    ${CMAKE_SOURCE_DIR}/common/SC_ServerBootDelayWarning.cpp
     server/buffer_manager.cpp
     server/memory_pool.cpp
     server/node_graph.cpp
@@ -39,7 +62,7 @@ set(libsupernova_src
 if(APPLE)
   list( APPEND libsupernova_src ${CMAKE_SOURCE_DIR}/common/SC_Apple.mm )
 
-  set_property(SOURCE ${CMAKE_SOURCE_DIR}/common/SC_DirUtils.cpp PROPERTY COMPILE_FLAGS -xobjective-c++)
+  set_property(SOURCE ${CMAKE_SOURCE_DIR}/common/SC_Filesystem_macos.cpp PROPERTY COMPILE_FLAGS -xobjective-c++)
 endif()
 
 
@@ -68,7 +91,7 @@ if(NOT WIN32)
                PROPERTY OUTPUT_NAME supernova)
 endif()
 
-target_link_libraries(libsupernova oscpack tlsf ${PTHREADS_LIBRARIES} boost_thread)
+target_link_libraries(libsupernova oscpack tlsf ${PTHREADS_LIBRARIES} boost_thread_lib)
 
 target_compile_definitions(libsupernova PUBLIC SUPERNOVA)
 target_include_directories(libsupernova PUBLIC
@@ -92,10 +115,14 @@ if(NOVA_SIMD)
     target_include_directories(libsupernova PUBLIC ${CMAKE_SOURCE_DIR}/external_libraries)
 endif()
 
-find_library(DL NAMES dl)
-if(DL)
+if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD|DragonFly|OpenBSD|NetBSD")
     target_compile_definitions(libsupernova PUBLIC DLOPEN)
-    target_link_libraries(libsupernova ${DL})
+else()
+  find_library(DL NAMES dl)
+  if(DL)
+      target_compile_definitions(libsupernova PUBLIC DLOPEN)
+      target_link_libraries(libsupernova ${DL})
+  endif()
 endif()
 
 if(APPLE OR MSYS)
@@ -134,20 +161,15 @@ endif()
 if (FFTW3F_FOUND)
     target_include_directories(libsupernova PUBLIC ${FFTW3F_INCLUDE_DIR})
     target_link_libraries(libsupernova ${FFTW3F_LIBRARY})
+    set_property(TARGET libsupernova PROPERTY SUPERNOVA_FFTW ON) # for fixing linking in macdeployqt
 endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     target_link_libraries(libsupernova rt)
 endif()
 
-
-if(Boost_FOUND)
-    target_link_libraries(libsupernova ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_PROGRAM_OPTIONS_LIBRARY})
-    target_include_directories(libsupernova PUBLIC ${Boost_INCLUDE_DIRS})
-else()
-    target_include_directories(libsupernova PUBLIC ${CMAKE_SOURCE_DIR}/external_libraries/boost)
-    target_link_libraries(libsupernova boost_system boost_filesystem boost_program_options)
-endif()
+target_link_libraries(libsupernova boost_system_lib boost_filesystem_lib boost_program_options_lib)
+target_include_directories(libsupernova PUBLIC ${boost_include_dirs})
 
 if(CMAKE_COMPILER_IS_GNUCXX)
     if( ${_gcc_version} VERSION_GREATER 5 )
@@ -165,6 +187,7 @@ target_link_libraries(supernova libsupernova)
 
 if(WIN32)
     if(NOT MSVC)
+      target_link_libraries(supernova "-municode")
       set_target_properties(supernova libsupernova PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<CONFIG>")
     endif(NOT MSVC)
 
@@ -223,10 +246,22 @@ if(LTO)
 endif()
 
 if (APPLE)
-    target_link_libraries(libsupernova "-framework Accelerate")
-    target_link_libraries(libsupernova "-framework CoreAudio -framework CoreServices -framework Foundation -framework ApplicationServices")
+    target_link_libraries(libsupernova "-framework Accelerate -framework CoreAudio -framework CoreServices"
+                                        "-framework Foundation -framework ApplicationServices -framework AppKit")
 endif()
 
 if(${JACK_USE_METADATA_API})
     target_compile_definitions(libsupernova PUBLIC "-DSC_JACK_USE_METADATA_API")
+endif()
+
+
+
+if(${LIB_SUFFIX})
+    add_definitions(-DLIB_SUFFIX="${LIB_SUFFIX}")
+else()
+    add_definitions(-DLIB_SUFFIX="")
+endif()
+
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(libsupernova PUBLIC "SC_PLUGIN_DIR=\"${LINUX_SC_PLUGIN_DIR}\"")
 endif()

@@ -21,52 +21,67 @@
  *
  */
 
-#ifndef SC_LANGUAGECONFIG_HPP_INCLUDED
-#define SC_LANGUAGECONFIG_HPP_INCLUDED
+#pragma once
 
 #include <vector>
 #include <string>
+#include <boost/filesystem/path.hpp>
 
-class SC_LanguageConfig
-{
+class SC_LanguageConfig;
+extern SC_LanguageConfig* gLanguageConfig;
+extern const char* SCLANG_YAML_CONFIG_FILENAME;
+
+/**
+ * \brief Language configuration settings.
+ *
+ * \c sclang uses a global instance of this class to manage knowledge of
+ * compilation paths.
+ *
+ * \c SC_LanguageConfig also provides services for the global language
+ * configuration file and the option for warning on function inlining.
+ */
+class SC_LanguageConfig {
 public:
-	typedef std::vector<std::string> DirVector;
-	SC_LanguageConfig(bool standalone);
+    typedef boost::filesystem::path Path;
+    typedef std::vector<Path> DirVector;
 
-	const DirVector& includedDirectories() { return mIncludedDirectories; }
-	const DirVector& excludedDirectories() { return mExcludedDirectories; }
+    SC_LanguageConfig(bool standalone);
 
-	void postExcludedDirectories(void);
-	bool forEachIncludedDirectory(bool (*func)(const char *, int));
+    const DirVector& includedDirectories() const { return mIncludedDirectories; }
+    const DirVector& excludedDirectories() const { return mExcludedDirectories; }
+    const DirVector& defaultClassLibraryDirectories() const { return mDefaultClassLibraryDirectories; }
 
-	bool pathIsExcluded(const char *path);
+    void postExcludedDirectories(void) const;
 
-	void addIncludedDirectory(const char *name);
-	void addExcludedDirectory(const char *name);
-	void removeIncludedDirectory(const char *name);
-	void removeExcludedDirectory(const char *name);
+    bool pathIsExcluded(const Path&) const; // true iff the path is in mExcludedDirectories
 
-	// convenience functions to access the global library config
-	static void setConfigFile(std::string const & fileName)
-	{
-		gConfigFile = fileName;
-	}
+    bool addIncludedDirectory(const Path&); // false iff the path was already in the vector
+    bool addExcludedDirectory(const Path&);
 
-	static bool readLibraryConfigYAML(const char* fileName, bool standalone);
-	static bool writeLibraryConfigYAML(const char* fileName);
-	static void freeLibraryConfig();
-	static bool defaultLibraryConfig(   bool standalone);
-	static bool readLibraryConfig(bool standalone);
-	
-	const char* getCurrentConfigPath();
+    bool removeIncludedDirectory(const Path&); // false iff there was nothing to remove
+    bool removeExcludedDirectory(const Path&);
+
+    bool forEachIncludedDirectory(bool (*)(const Path&)) const;
+
+    static bool readLibraryConfigYAML(const Path&, bool standalone);
+    static bool writeLibraryConfigYAML(const Path&);
+    static void freeLibraryConfig();
+    static bool defaultLibraryConfig(bool standalone);
+    static bool readLibraryConfig(bool standalone);
+
+    static bool getPostInlineWarnings() { return gPostInlineWarnings; }
+    static void setPostInlineWarnings(bool b) { gPostInlineWarnings = b; }
+    static const Path& getConfigPath() { return gConfigFile; }
+    static void setConfigPath(const Path& p) { gConfigFile = p; }
 
 private:
-	DirVector mIncludedDirectories;
-	DirVector mExcludedDirectories;
-	DirVector mDefaultClassLibraryDirectories;
-	static std::string gConfigFile;
+    static bool findPath(const DirVector&, const Path&);
+    static bool addPath(DirVector&, const Path&);
+    static bool removePath(DirVector&, const Path&);
+
+    DirVector mIncludedDirectories;
+    DirVector mExcludedDirectories;
+    DirVector mDefaultClassLibraryDirectories;
+    static Path gConfigFile;
+    static bool gPostInlineWarnings;
 };
-
-extern SC_LanguageConfig* gLanguageConfig;
-
-#endif // SC_LANGUAGECONFIG_HPP_INCLUDED

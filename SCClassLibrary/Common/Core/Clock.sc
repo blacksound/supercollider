@@ -65,6 +65,7 @@ AppClock : Clock {
 	*prSchedNotify {
 		// notify clients that something has been scheduled
 		_AppClock_SchedNotify
+		^this.primitiveFailed
 	}
 }
 
@@ -250,7 +251,7 @@ elapsed time is whatever the system clock says it is right now. elapsed time is 
 		_TempoClock_SchedAbs
 		^this.primitiveFailed
 	}
-	clear { | releaseNodes = true |
+	clear { arg releaseNodes = true;
 		// flag tells EventStreamPlayers that CmdPeriod is removing them, so
 		// nodes are already freed
 		// NOTE: queue is an Array, not a PriorityQueue, but it's used as such internally. That's why each item uses 3 slots.
@@ -267,7 +268,7 @@ elapsed time is whatever the system clock says it is right now. elapsed time is 
 	// (even another TempoClock's logical time).
 	tempo_ { arg newTempo;
 		this.setTempoAtBeat(newTempo, this.beats);
-		this.changed(\tempo);  // this line is added
+		this.changed(\tempo);
 	}
 	beatsPerBar_ { arg newBeatsPerBar;
 		if (thisThread.clock != this) {
@@ -277,9 +278,10 @@ elapsed time is whatever the system clock says it is right now. elapsed time is 
 		this.setMeterAtBeat(newBeatsPerBar, thisThread.beats);
 	}
 
-	// for setting the tempo at the current elapsed time .
+	// for setting the tempo at the current elapsed time.
 	etempo_ { arg newTempo;
 		this.setTempoAtSec(newTempo, Main.elapsedTime);
+		this.changed(\tempo);
 	}
 
 	beats2secs { arg beats;
@@ -327,6 +329,8 @@ elapsed time is whatever the system clock says it is right now. elapsed time is 
 		^this.beats - this.bars2beats(this.bar)
 	}
 
+	isRunning { ^ptr.notNil }
+
 	// PRIVATE
 	prStart { arg tempo, beats, seconds;
 		_TempoClock_New
@@ -348,6 +352,7 @@ elapsed time is whatever the system clock says it is right now. elapsed time is 
 		_TempoClock_SetTempoAtTime
 		^this.primitiveFailed
 	}
+
 	// meter should only be changed in the TempoClock's thread.
 	setMeterAtBeat { arg newBeatsPerBar, beats;
 		// bar must be integer valued when meter changes or confusion results later.
@@ -390,6 +395,8 @@ elapsed time is whatever the system clock says it is right now. elapsed time is 
 	*bar { ^TempoClock.default.bar  }
 	*nextBar { | beat | ^TempoClock.default.nextBar(beat)  }
 	*beatInBar { ^TempoClock.default.beatInBar  }
+
+	*isRunning { ^this.default.isRunning }
 
 	archiveAsCompileString { ^true }
 }

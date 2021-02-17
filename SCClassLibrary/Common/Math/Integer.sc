@@ -103,22 +103,59 @@ Integer : SimpleNumber {
 		^array
 	}
 
-	nextPowerOfTwo { _NextPowerOfTwo }
-	isPowerOfTwo { _IsPowerOfTwo }
-	leadingZeroes { _CLZ }
-	trailingZeroes { _CTZ }
-	numBits { _NumBits }
-	log2Ceil { _Log2Ceil }
-	grayCode { _BinaryGrayCode }
-	setBit { arg bitNumber, bool = true; _SetBit ^this.primitiveFailed }
-
-	nthPrime { _NthPrime }
-	prevPrime { _PrevPrime }
-	nextPrime { _NextPrime }
-	indexOfPrime { _IndexOfPrime }
-
+	nextPowerOfTwo {
+		_NextPowerOfTwo
+		^this.primitiveFailed
+	}
+	isPowerOfTwo {
+		_IsPowerOfTwo
+		^this.primitiveFailed
+	}
+	leadingZeroes {
+		_CLZ
+		^this.primitiveFailed
+	}
+	trailingZeroes {
+		_CTZ
+		^this.primitiveFailed
+	}
+	numBits {
+		_NumBits
+		^this.primitiveFailed
+	}
+	log2Ceil {
+		_Log2Ceil
+		^this.primitiveFailed
+	}
+	grayCode {
+		_BinaryGrayCode
+		^this.primitiveFailed
+	}
+	setBit {
+		arg bitNumber, bool = true;
+		_SetBit
+		^this.primitiveFailed
+	}
+	nthPrime {
+		_NthPrime
+		^this.primitiveFailed
+	}
+	prevPrime {
+		_PrevPrime
+		^this.primitiveFailed
+	}
+	nextPrime {
+		_NextPrime
+		^this.primitiveFailed
+	}
+	indexOfPrime {
+		_IndexOfPrime
+		^this.primitiveFailed
+	}
 	isPrime {
 		_IsPrime
+		^this.primitiveFailed
+
 		/*
 		var sqrtThis;
 		if ( this <= 2, {
@@ -134,9 +171,19 @@ Integer : SimpleNumber {
 		*/
 	}
 
-	// exit the program and return the result code to unix shell
-	exit { _Exit }
+	factorial {
+		if(this > 12) {
+			Error("factorial: insufficient integer precision for this number (%). "
+				"Use Float.factorial instead.".format(this)).throw
+		};
+		^super.factorial.asInteger
+	}
 
+	// exit the program and return the result code to unix shell
+	exit {
+		_Exit
+		^this.primitiveFailed
+	}
 	asStringToBase { | base=10, width=8 |
 		var rest = this, string, mask;
 		if (base.inclusivelyBetween(2, 36).not) {
@@ -180,6 +227,7 @@ Integer : SimpleNumber {
 	geom { arg start, grow;
 		^Array.geom(this, start, grow);
 	}
+
 	fib { arg a=0.0, b=1.0;
 		^Array.fib(this, a, b);
 	}
@@ -208,17 +256,6 @@ Integer : SimpleNumber {
 	}
 
 	pidRunning { _PidRunning; ^this.primitiveFailed }
-
-	factorial {
-		^#[1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800, 39916800, 479001600]
-			@ this.max(0)
-			?? { Error("integer resolution too low for this factorial:" + this).throw };
-		/*var	product = 1;
-		if(this <= 1) { ^1 } {
-			this.do { |x| product = product * (x+1) };
-			^product
-		}*/
-	}
 
 		// support for modifiers keys
 	isCaps { ^this.bitAnd(65536) == 65536}

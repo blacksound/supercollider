@@ -25,7 +25,7 @@ EnvirGui : JITGui {
 	}
 
 	*new { |object, numItems = 8, parent, bounds, makeSkip = true, options = #[]|
-		^super.new(object, numItems, parent, bounds, makeSkip = true, options);
+		^super.new(object, numItems, parent, bounds, makeSkip, options);
 	}
 
 	setDefaults {
@@ -80,8 +80,8 @@ EnvirGui : JITGui {
 		options.do { |key| extraFuncs[key].value; };
 	}
 
-	makeNameView { |nameWid, height|
-		nameView = StaticText(zone, Rect(0,0, nameWid, height))
+	makeNameView { |width, height|
+		nameView = StaticText(zone, Rect(0,0, width, height))
 			.font_(font).align_(0);
 	}
 
